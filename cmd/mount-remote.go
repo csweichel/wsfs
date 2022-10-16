@@ -47,7 +47,10 @@ var mountRemoteCmd = &cobra.Command{
 		if err != nil {
 			log.WithError(err).Fatal("cannot open remote index")
 		}
-		indexedRoot := wsfs.New(fsIndex)
+		indexedRoot := wsfs.New(fsIndex, wsfs.Options{
+			DefaultUID: mountOpts.DefaultUID,
+			DefaultGID: mountOpts.DefaultGID,
+		})
 
 		mnt := args[1]
 		os.Mkdir(mnt, 0755)

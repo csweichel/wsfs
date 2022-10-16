@@ -20,7 +20,7 @@ import (
 	"github.com/snabb/httpreaderat"
 )
 
-func OpenRemoteIndex(ctx context.Context, baseURL string) (Index, error) {
+func OpenRemoteIndex(ctx context.Context, baseURL string) (CompleteIndex, error) {
 	tmpdir, err := os.MkdirTemp("", "wsfs-index-*")
 	if err != nil {
 		return nil, err
@@ -148,38 +148,35 @@ type fileBackedIndex struct {
 	Index   *badger.DB
 }
 
-func (fs *fileBackedIndex) Entries() <-chan File {
-	res := make(chan File)
-	go func() {
-		defer close(res)
+func (fs *fileBackedIndex) AllEntries() []Entry {
+	var res []Entry
 
-		_ = fs.Index.View(func(txn *badger.Txn) error {
-			it := txn.NewIterator(badger.DefaultIteratorOptions)
-			defer it.Close()
+	_ = fs.Index.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
 
-			for it.Rewind(); it.Valid(); it.Next() {
-				item := it.Item()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
 
-				err := item.Value(func(v []byte) error {
-					var e indexEntry
-					err := json.Unmarshal(v, &e)
-					if err != nil {
-						return err
-					}
-
-					res <- &fileBackedIndexEntry{
-						TarFile: fs.TarFile,
-						Entry:   e,
-					}
-					return nil
-				})
+			err := item.Value(func(v []byte) error {
+				var e indexEntry
+				err := json.Unmarshal(v, &e)
 				if err != nil {
 					return err
 				}
+
+				res = append(res, &fileBackedIndexEntry{
+					TarFile: fs.TarFile,
+					Entry:   e,
+				})
+				return nil
+			})
+			if err != nil {
+				return err
 			}
-			return nil
-		})
-	}()
+		}
+		return nil
+	})
 	return res
 }
 
@@ -189,12 +186,12 @@ type fileBackedIndexEntry struct {
 }
 
 // Read implements File
-func (e *fileBackedIndexEntry) Read(dst []byte, offset int64, len int64) (n int, err error) {
-	return e.TarFile.ReadAt(dst[:len], e.Entry.Offset+offset)
+func (e *fileBackedIndexEntry) Read(dst []byte, offset int64) (n int, err error) {
+	return e.TarFile.ReadAt(dst, e.Entry.Offset+offset)
 }
 
 // Size implements File
-func (e *fileBackedIndexEntry) Getattr(out *fuse.AttrOut) error {
+func (e *fileBackedIndexEntry) Getattr(out *fuse.Attr) (applyDefaults bool, err error) {
 	hdr := e.Entry.TarHeader
 
 	out.Atime = uint64(hdr.AccessTime.Unix())
@@ -204,7 +201,7 @@ func (e *fileBackedIndexEntry) Getattr(out *fuse.AttrOut) error {
 	out.Size = uint64(hdr.Size)
 	out.Uid = uint32(hdr.Uid)
 
-	return nil
+	return false, nil
 }
 
 func (e *fileBackedIndexEntry) Mode() uint32 {
@@ -236,20 +233,27 @@ func (e *fileBackedIndexEntry) Name() string {
 	return e.Entry.TarHeader.Name
 }
 
-var _ File = (*fileBackedIndexEntry)(nil)
+var _ Entry = (*fileBackedIndexEntry)(nil)
 
-type Index interface {
-	Entries() <-chan File
+type Index interface{}
+
+type CompleteIndex interface {
+	AllEntries() []Entry
 }
 
-type File interface {
+type LazyIndex interface {
+	RootEntries() []Entry
+	Children(ctx context.Context, of Entry) ([]Entry, error)
+}
+
+type Entry interface {
 	Name() string
-	Getattr(out *fuse.AttrOut) error
+	Getattr(out *fuse.Attr) (applyDefaults bool, err error)
 
 	// Mode is used on the stableAttr of the inode
 	Mode() uint32
 
-	Read(dst []byte, offset int64, len int64) (n int, err error)
+	Read(dst []byte, offset int64) (n int, err error)
 }
 
 type indexEntry struct {

@@ -28,7 +28,10 @@ var mountLocalCmd = &cobra.Command{
 			logrus.WithError(err).Fatal("cannot open indexed tar")
 		}
 
-		root := wsfs.New(fsIndex)
+		root := wsfs.New(fsIndex, wsfs.Options{
+			DefaultUID: mountOpts.DefaultUID,
+			DefaultGID: mountOpts.DefaultGID,
+		})
 
 		mnt := args[2]
 		os.Mkdir(mnt, 0755)

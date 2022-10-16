@@ -24,8 +24,8 @@ var indexDumpCmd = &cobra.Command{
 			log.WithError(err).Fatal("cannot open index")
 		}
 
-		var res []idxtar.File
-		for f := range idx.Entries() {
+		var res []idxtar.Entry
+		for _, f := range idx.AllEntries() {
 			f := f
 			res = append(res, f)
 		}
