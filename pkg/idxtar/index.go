@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v3"
@@ -206,6 +207,30 @@ func (e *fileBackedIndexEntry) Getattr(out *fuse.AttrOut) error {
 	return nil
 }
 
+func (e *fileBackedIndexEntry) Mode() uint32 {
+	switch e.Entry.TarHeader.Typeflag {
+	case tar.TypeSymlink:
+		return syscall.S_IFLNK
+
+	case tar.TypeLink:
+		log.Warn("don't know how to handle Typelink")
+		return 0
+
+	case tar.TypeChar:
+		return syscall.S_IFCHR
+	case tar.TypeBlock:
+		return syscall.S_IFBLK
+	case tar.TypeDir:
+		return syscall.S_IFDIR
+	case tar.TypeFifo:
+		return syscall.S_IFIFO
+	case tar.TypeReg, tar.TypeRegA:
+		return 0
+	default:
+		return 0
+	}
+}
+
 // Name implements File
 func (e *fileBackedIndexEntry) Name() string {
 	return e.Entry.TarHeader.Name
@@ -220,6 +245,9 @@ type Index interface {
 type File interface {
 	Name() string
 	Getattr(out *fuse.AttrOut) error
+
+	// Mode is used on the stableAttr of the inode
+	Mode() uint32
 
 	Read(dst []byte, offset int64, len int64) (n int, err error)
 }

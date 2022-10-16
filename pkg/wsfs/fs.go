@@ -55,7 +55,9 @@ func (zr *zipRoot) OnAdd(ctx context.Context) {
 			continue
 		}
 
-		ch := p.NewPersistentInode(ctx, &zipFile{file: f}, fs.StableAttr{})
+		ch := p.NewPersistentInode(ctx, &zipFile{file: f}, fs.StableAttr{
+			Mode: f.Mode(),
+		})
 
 		logrus.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
 		p.AddChild(base, ch, true)
