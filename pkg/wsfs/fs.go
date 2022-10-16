@@ -2,6 +2,8 @@ package wsfs
 
 import (
 	"context"
+	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -74,24 +76,28 @@ type zipFile struct {
 var _ fs.NodeGetattrer = (*zipFile)(nil)
 
 func (zf *zipFile) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	out.Size = zf.file.Size()
+	zf.file.Getattr(out)
 	return 0
 }
 
 var _ fs.NodeOpener = (*zipFile)(nil)
 
 func (zf *zipFile) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, syscall.Errno) {
-	// We don't return a filehandle since we don't really need
-	// one.  The file content is immutable, so hint the kernel to
-	// cache the data.
-	return nil, fuse.FOPEN_KEEP_CACHE, fs.OK
+	// // We don't return a filehandle since we don't really need
+	// // one.  The file content is immutable, so hint the kernel to
+	// // cache the data.
+	// return nil, fuse.FOPEN_KEEP_CACHE, fs.OK
+	return nil, 0, fs.OK
 }
 
 var _ fs.NodeReader = (*zipFile)(nil)
 
 // Read simply returns the data that was already unpacked in the Open call
 func (zf *zipFile) Read(ctx context.Context, f fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
-	zf.file.Read(dest, off, int64(len(dest)))
+	n, err := zf.file.Read(dest, off, int64(len(dest)))
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, syscall.EINVAL
+	}
 
-	return fuse.ReadResultData(dest), fs.OK
+	return fuse.ReadResultData(dest[:n]), fs.OK
 }

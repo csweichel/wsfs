@@ -6,6 +6,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.3
 	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/sirupsen/logrus v1.9.0
+	github.com/snabb/httpreaderat v1.0.1
 	github.com/spf13/cobra v1.6.0
 )
 
