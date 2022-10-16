@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/dgraph-io/badger/v3 v3.2103.3
 	github.com/hanwen/go-fuse/v2 v2.1.0
+	github.com/sevlyar/go-daemon v0.1.6
 	github.com/sirupsen/logrus v1.9.0
 	github.com/snabb/httpreaderat v1.0.1
 	github.com/spf13/cobra v1.6.0
@@ -22,6 +23,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

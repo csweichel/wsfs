@@ -7,6 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var mountOpts struct {
+	Daemonise bool
+}
+
 // mountCmd represents the mount command
 var mountCmd = &cobra.Command{
 	Use:  "mount",
@@ -15,4 +19,6 @@ var mountCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(mountCmd)
+
+	mountCmd.PersistentFlags().BoolVar(&mountOpts.Daemonise, "daemonise", false, "Run process in the background")
 }

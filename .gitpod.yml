@@ -1,0 +1,20 @@
+tasks:
+  - name: "Serve Index"
+    before: source demo.sh
+    init: 
+      install_wsfs
+      && gp sync-done wsfs
+      && prepare_demo_content
+    command: 
+      prepare_mount
+      && serve_index
+  - name: "Mount filesystem"
+    openMode: split-right
+    before: source demo.sh
+    command: 
+      gp sync-await wsfs
+      && gp ports await 8080
+      && mount_wsfs
+      && sleep 1
+      && mount_overlay
+      && print_demo_info

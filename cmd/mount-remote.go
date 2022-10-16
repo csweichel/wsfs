@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -14,7 +13,8 @@ import (
 	"github.com/csweichel/wsfs/pkg/wsfs"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/sirupsen/logrus"
+	"github.com/sevlyar/go-daemon"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -23,18 +23,35 @@ var mountRemoteCmd = &cobra.Command{
 	Use:  "remote <baseURL> <mountpoint>",
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
+		if daemon.WasReborn() {
+			// let's go
+		} else if mountOpts.Daemonise {
+			ctx := daemon.Context{
+				PidFileName: "/tmp/wsfs.pid",
+				LogFileName: "/tmp/wsfs.log",
+			}
+			d, err := ctx.Reborn()
+			if err != nil {
+				log.WithError(err).Fatal("cannot daemonise")
+			}
+			if d != nil {
+				return
+			}
+
+			log.Fatal("cannot daemonise")
+		}
+
 		t0 := time.Now()
 
 		fsIndex, err := idxtar.OpenRemoteIndex(context.Background(), args[0])
 		if err != nil {
-			logrus.WithError(err).Fatal("cannot open remote index")
+			log.WithError(err).Fatal("cannot open remote index")
 		}
-
-		root := wsfs.New(fsIndex)
+		indexedRoot := wsfs.New(fsIndex)
 
 		mnt := args[1]
 		os.Mkdir(mnt, 0755)
-		server, err := fs.Mount(mnt, root, &fs.Options{
+		server, err := fs.Mount(mnt, indexedRoot, &fs.Options{
 			MountOptions: fuse.MountOptions{
 				Debug: rootOpts.Verbose,
 			},
