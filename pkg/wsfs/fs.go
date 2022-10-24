@@ -155,7 +155,8 @@ var _ fs.NodeReaddirer = (*indexedFile)(nil)
 // Readdir implements fs.NodeReaddirer
 func (zf *indexedFile) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 	if zf.lazyIdx == nil {
-		return nil, 0
+		log.WithField("entry", zf.file).Warn("ReadDir without lazy index")
+		return nil, syscall.EINVAL
 	}
 
 	children, err := zf.lazyIdx.Children(ctx, zf.file)
