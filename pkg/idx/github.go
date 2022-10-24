@@ -197,7 +197,7 @@ func (e *githubEntry) Getattr(out *fuse.Attr) (applyDefaults bool, err error) {
 }
 
 // Mode implements File
-func (e *githubEntry) Mode() uint32 {
+func (e *githubEntry) StableMode() uint32 {
 	if e.Tree {
 		return syscall.S_IFDIR
 	}

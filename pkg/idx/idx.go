@@ -19,7 +19,7 @@ type Entry interface {
 	Getattr(out *fuse.Attr) (applyDefaults bool, err error)
 
 	// Mode is used on the stableAttr of the inode
-	Mode() uint32
+	StableMode() uint32
 
 	Read(dst []byte, offset int64) (n int, err error)
 }

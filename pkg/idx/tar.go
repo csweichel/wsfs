@@ -197,8 +197,14 @@ func (fs *fileBackedIndex) scan(ctx context.Context, include func(path []byte) b
 
 // Children implements LazyIndex
 func (fs *fileBackedIndex) Children(ctx context.Context, of Entry) ([]Entry, error) {
+	// one level deeper than the parent
+	ofPath := of.(*fileBackedIndexEntry).Path()
+
+	depth := strings.Count(ofPath, "/") + 1
 	return fs.scan(ctx, func(path []byte) bool {
-		return bytes.HasPrefix(path, []byte(of.Name())) && string(path) != of.Name()
+		return bytes.HasPrefix(path, []byte(ofPath)) &&
+			string(path) != ofPath &&
+			depth == strings.Count(string(path), "/")
 	})
 }
 
@@ -239,7 +245,7 @@ func (e *fileBackedIndexEntry) Getattr(out *fuse.Attr) (applyDefaults bool, err 
 	return false, nil
 }
 
-func (e *fileBackedIndexEntry) Mode() uint32 {
+func (e *fileBackedIndexEntry) StableMode() uint32 {
 	switch e.Entry.TarHeader.Typeflag {
 	case tar.TypeSymlink:
 		return syscall.S_IFLNK
@@ -265,6 +271,10 @@ func (e *fileBackedIndexEntry) Mode() uint32 {
 
 // Name implements File
 func (e *fileBackedIndexEntry) Name() string {
+	return filepath.Base(e.Entry.TarHeader.Name)
+}
+
+func (e *fileBackedIndexEntry) Path() string {
 	return e.Entry.TarHeader.Name
 }
 

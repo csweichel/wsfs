@@ -4,11 +4,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/csweichel/wsfs/pkg/idx"
 	badger "github.com/dgraph-io/badger/v3"
 	"github.com/google/go-cmp/cmp"
+	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
 const (
@@ -33,7 +36,15 @@ func TestChildren(t *testing.T) {
 			Index: prepareTestIndex(t),
 			Path:  "foo",
 			Expectation: Expectation{
-				Entries: []string{"foo/bar.txt", "foo/dir"},
+				Entries: []string{"bar.txt:644", "dir:755", "three:755"},
+			},
+		},
+		{
+			Name:  "foo/three",
+			Index: prepareTestIndex(t),
+			Path:  "foo/three",
+			Expectation: Expectation{
+				Entries: []string{"levels:755"},
 			},
 		},
 	}
@@ -44,15 +55,28 @@ func TestChildren(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cannot get root entries: %v", err)
 			}
-			for _, r := range root {
-				if r.Name() == test.Path {
-					e = r
-					break
+			for i, s := range strings.Split(test.Path, "/") {
+				if i > 0 {
+					root, err = test.Index.Children(context.Background(), e)
+					if err != nil {
+						t.Fatalf("cannot get child entries: %v", err)
+					}
+				}
+
+				for _, r := range root {
+					if r.Name() == s {
+						e = r
+						break
+					}
+				}
+				if e == nil {
+					t.Fatalf("did not find entry named %s", test.Path)
 				}
 			}
 			if e == nil {
-				t.Fatalf("did not find root entry named %s", test.Path)
+				t.Fatalf("did not find entry named %s", test.Path)
 			}
+			t.Logf("found entry named %s", e.Name())
 
 			var act Expectation
 			res, err := test.Index.Children(context.Background(), e)
@@ -62,7 +86,9 @@ func TestChildren(t *testing.T) {
 
 			act.Entries = make([]string, 0, len(res))
 			for _, e := range res {
-				act.Entries = append(act.Entries, e.Name())
+				var attr fuse.Attr
+				e.Getattr(&attr)
+				act.Entries = append(act.Entries, fmt.Sprintf("%s:%o", e.Name(), attr.Mode))
 			}
 
 			if diff := cmp.Diff(test.Expectation, act); diff != "" {
@@ -123,6 +149,10 @@ func prepareTestIndex(t *testing.T) idx.LazyIndex {
 	tarw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: "./foo/bar.txt", Mode: 0644, Uid: 33333, Gid: 33333, Size: int64(len(fileFooSlashBarTXT))})
 	tarw.Write([]byte(fileFooSlashBarTXT))
 	tarw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: "./foo/dir", Mode: 0755, Uid: 33333, Gid: 33333})
+	tarw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: "./foo/three", Mode: 0755, Uid: 33333, Gid: 33333})
+	tarw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: "./foo/three/levels", Mode: 0755, Uid: 33333, Gid: 33333})
+	tarw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: "./foo/three/levels/deep", Mode: 0755, Uid: 33333, Gid: 33333, Size: int64(len(fileHelloTXT))})
+	tarw.Write([]byte(fileHelloTXT))
 	tarw.Close()
 
 	db, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))

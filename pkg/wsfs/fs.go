@@ -54,7 +54,7 @@ func (zr *indexedRoot) OnAdd(ctx context.Context) {
 
 		p := &zr.Inode
 		ch := p.NewPersistentInode(ctx, &indexedFile{file: f, lazyIdx: idx, root: zr}, fs.StableAttr{
-			Mode: f.Mode(),
+			Mode: f.StableMode(),
 		})
 
 		log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
@@ -138,10 +138,12 @@ func (zf *indexedFile) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno
 	entries := make([]fuse.DirEntry, 0, len(children))
 	for _, child := range children {
 		entries = append(entries, fuse.DirEntry{
-			Mode: child.Mode(),
+			Mode: child.StableMode(),
 			Name: child.Name(),
 		})
 	}
+
+	log.WithField("name", zf.file.Name()).WithField("children", entries).Debug("readdir+")
 
 	return fs.NewListDirStream(entries), syscall.F_OK
 }
@@ -150,10 +152,6 @@ var _ fs.NodeLookuper = (*indexedFile)(nil)
 
 // Lookup implements fs.NodeLookuper
 func (zf *indexedFile) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	if zf.lazyIdx == nil {
-		return nil, 0
-	}
-
 	children, err := zf.lazyIdx.Children(ctx, zf.file)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		log.WithField("entry", zf.file).WithError(err).Warn("cannot lookup file")
@@ -181,13 +179,13 @@ func (zf *indexedFile) Lookup(ctx context.Context, name string, out *fuse.EntryO
 		out.Uid = zf.root.opts.DefaultUID
 	}
 
-	log.WithField("name", name).WithField("res", res).WithField("attr", out.Attr).Debug("lookup file")
+	log.WithField("name", name).WithField("res", res).WithField("attr", out.Attr).WithField("mode", res.StableMode()).Debug("lookup file")
 
 	return zf.NewPersistentInode(ctx, &indexedFile{
 		file:    res,
 		lazyIdx: zf.lazyIdx,
 		root:    zf.root,
 	}, fs.StableAttr{
-		Mode: res.Mode(),
+		Mode: res.StableMode(),
 	}), fs.OK
 }
