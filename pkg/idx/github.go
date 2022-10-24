@@ -17,7 +17,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func NewGitHubIndex(ctx context.Context, ghToken, owner, repo string) (LazyIndex, error) {
+func NewGitHubIndex(ctx context.Context, ghToken, owner, repo, revision string) (LazyIndex, error) {
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: ghToken},
 	)
@@ -29,6 +29,7 @@ func NewGitHubIndex(ctx context.Context, ghToken, owner, repo string) (LazyIndex
 		HTTPClient: httpClient,
 		Owner:      owner,
 		Repo:       repo,
+		Revision: revision,
 	}
 
 	err := res.fetchRoot(ctx)
@@ -94,7 +95,7 @@ func (n *githubIndex) fetch(ctx context.Context, path string) ([]*githubEntry, e
 	vars := map[string]interface{}{
 		"owner": githubv4.String(n.Owner),
 		"name":  githubv4.String(n.Repo),
-		"expr":  githubv4.String("main:" + path),
+		"expr":  githubv4.String(n.Revision + ":" + path),
 	}
 
 	log.WithField("vars", vars).Debug("fetching entries")
@@ -124,7 +125,7 @@ func (n *githubIndex) fetch(ctx context.Context, path string) ([]*githubEntry, e
 func (n *githubIndex) fetchRoot(ctx context.Context) error {
 	res, err := n.fetch(ctx, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot fetch root: %w", err)
 	}
 	n.children = map[string][]*githubEntry{
 		"": res,
@@ -143,6 +144,7 @@ func (n *githubIndex) RootEntries(ctx context.Context) ([]Entry, error) {
 }
 
 func (n *githubIndex) Children(ctx context.Context, of Entry) ([]Entry, error) {
+	
 	entry := of.(*githubEntry)
 	n.mu.RLock()
 	children, ok := n.children[entry.Fullpath]
@@ -215,7 +217,7 @@ func (e *githubEntry) Read(dst []byte, offset int64) (n int, err error) {
 	defer e.mu.Unlock()
 
 	if e.r == nil {
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://github.com/%s/%s/raw/main/%s", e.idx.Owner, e.idx.Repo, e.Fullpath), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://github.com/%s/%s/raw/%s/%s", e.idx.Owner, e.idx.Repo, e.idx.Revision, e.Fullpath), nil)
 		if err != nil {
 			return 0, err
 		}

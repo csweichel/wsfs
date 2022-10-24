@@ -17,6 +17,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var mountGithubOpts struct {
+	Revision string
+}
+
 // mountGithubCmd represents the mountGithub command
 var mountGithubCmd = &cobra.Command{
 	Use:   "github <owner/repo> <mountpoint>",
@@ -34,7 +38,7 @@ var mountGithubCmd = &cobra.Command{
 		}
 		owner, repo := segs[0], segs[1]
 
-		idx, err := idx.NewGitHubIndex(context.Background(), token, owner, repo)
+		idx, err := idx.NewGitHubIndex(context.Background(), token, owner, repo, mountGithubOpts.Revision)
 		if err != nil {
 			log.WithError(err).Fatal("cannot build GitHub index")
 		}
@@ -62,4 +66,5 @@ var mountGithubCmd = &cobra.Command{
 
 func init() {
 	mountCmd.AddCommand(mountGithubCmd)
+	mountGithubCmd.Flags().StringVar(&mountGithubOpts.Revision, "revision", "main", "Revision to serve")
 }
