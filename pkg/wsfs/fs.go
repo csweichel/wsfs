@@ -38,7 +38,7 @@ func (zr *indexedRoot) OnAdd(ctx context.Context) {
 	// then construct a tree.  We construct the entire tree, and
 	// we don't want parts of the tree to disappear when the
 	// kernel is short on memory, so we use persistent inodes.
-	idx, ok := zr.idx.(idx.LazyIndex)
+	idx, ok := zr.idx.(idx.Index)
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ type indexedFile struct {
 	file idx.Entry
 
 	root    *indexedRoot
-	lazyIdx idx.LazyIndex
+	lazyIdx idx.Index
 }
 
 // Getattr sets the minimum, which is the size. A more full-featured

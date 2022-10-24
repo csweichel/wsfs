@@ -69,7 +69,7 @@ func (mi mappedIndex) RootEntries(ctx context.Context) ([]idx.Entry, error) {
 	return mi, nil
 }
 
-var _ idx.LazyIndex = ((mappedIndex)(nil))
+var _ idx.Index = ((mappedIndex)(nil))
 var _ idx.Entry = ((*mappedFile)(nil))
 
 func newDir(name string, children ...idx.Entry) idx.Entry {

@@ -27,7 +27,7 @@ func TestChildren(t *testing.T) {
 	}
 	tests := []struct {
 		Name        string
-		Index       idx.LazyIndex
+		Index       idx.Index
 		Path        string
 		Expectation Expectation
 	}{
@@ -105,7 +105,7 @@ func TestRootEntries(t *testing.T) {
 	}
 	tests := []struct {
 		Name        string
-		Index       idx.LazyIndex
+		Index       idx.Index
 		Expectation Expectation
 	}{
 		{
@@ -136,7 +136,7 @@ func TestRootEntries(t *testing.T) {
 	}
 }
 
-func prepareTestIndex(t *testing.T) idx.LazyIndex {
+func prepareTestIndex(t *testing.T) idx.Index {
 	buf := bytes.NewBuffer(nil)
 
 	tarw := tar.NewWriter(buf)

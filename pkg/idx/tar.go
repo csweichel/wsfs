@@ -21,7 +21,7 @@ import (
 	"github.com/snabb/httpreaderat"
 )
 
-func OpenRemoteTarIndex(ctx context.Context, baseURL string) (LazyIndex, error) {
+func OpenRemoteTarIndex(ctx context.Context, baseURL string) (Index, error) {
 	tmpdir, err := os.MkdirTemp("", "wsfs-index-*")
 	if err != nil {
 		return nil, err
@@ -141,14 +141,14 @@ func OpenFileBackedTarIndex(index, tarfile string) (Index, error) {
 	return OpenTarIndex(idx, tarf)
 }
 
-func OpenTarIndex(index *badger.DB, tarfile io.ReaderAt) (LazyIndex, error) {
+func OpenTarIndex(index *badger.DB, tarfile io.ReaderAt) (Index, error) {
 	return &fileBackedIndex{
 		TarFile: tarfile,
 		Index:   index,
 	}, nil
 }
 
-var _ LazyIndex = ((*fileBackedIndex)(nil))
+var _ Index = ((*fileBackedIndex)(nil))
 
 type fileBackedIndex struct {
 	TarFile io.ReaderAt

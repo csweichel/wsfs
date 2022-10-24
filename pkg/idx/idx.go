@@ -6,9 +6,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
-type Index interface{}
-
-type LazyIndex interface {
+type Index interface {
 	RootEntries(ctx context.Context) ([]Entry, error)
 	Children(ctx context.Context, of Entry) ([]Entry, error)
 }

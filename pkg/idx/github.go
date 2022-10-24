@@ -17,7 +17,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func NewGitHubIndex(ctx context.Context, ghToken, owner, repo, revision string) (LazyIndex, error) {
+func NewGitHubIndex(ctx context.Context, ghToken, owner, repo, revision string) (Index, error) {
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: ghToken},
 	)
