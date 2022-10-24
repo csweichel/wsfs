@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/csweichel/wsfs/pkg/idxtar"
+	"github.com/csweichel/wsfs/pkg/idx"
 	"github.com/csweichel/wsfs/pkg/wsfs"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -43,7 +43,7 @@ var mountRemoteCmd = &cobra.Command{
 
 		t0 := time.Now()
 
-		fsIndex, err := idxtar.OpenRemoteIndex(context.Background(), args[0])
+		fsIndex, err := idx.OpenRemoteTarIndex(context.Background(), args[0])
 		if err != nil {
 			log.WithError(err).Fatal("cannot open remote index")
 		}

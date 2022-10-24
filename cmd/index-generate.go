@@ -3,7 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/csweichel/wsfs/pkg/idxtar"
+	"github.com/csweichel/wsfs/pkg/idx"
+	"github.com/dgraph-io/badger/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +21,13 @@ var indexGenerateCmd = &cobra.Command{
 		}
 		defer in.Close()
 
-		err = idxtar.ProduceIndexFromTarFile(args[0], in)
+		db, err := badger.Open(badger.DefaultOptions(args[0]))
+		if err != nil {
+			log.WithError(err).Fatal("cannot open database")
+		}
+		defer db.Close()
+
+		err = idx.ProduceIndexFromTarFile(db, in)
 		if err != nil {
 			log.WithError(err).Fatal("cannot produce index")
 		}

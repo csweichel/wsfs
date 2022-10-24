@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/csweichel/wsfs/pkg/idxtar"
+	"github.com/csweichel/wsfs/pkg/idx"
 	"github.com/csweichel/wsfs/pkg/wsfs"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -34,7 +34,7 @@ var mountGithubCmd = &cobra.Command{
 		}
 		owner, repo := segs[0], segs[1]
 
-		idx, err := idxtar.NewGitHubIndex(context.Background(), token, owner, repo)
+		idx, err := idx.NewGitHubIndex(context.Background(), token, owner, repo)
 		if err != nil {
 			log.WithError(err).Fatal("cannot build GitHub index")
 		}

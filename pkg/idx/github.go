@@ -1,4 +1,4 @@
-package idxtar
+package idx
 
 import (
 	"context"
@@ -134,12 +134,12 @@ func (n *githubIndex) fetchRoot(ctx context.Context) error {
 }
 
 // Entries implements Index
-func (n *githubIndex) RootEntries() []Entry {
+func (n *githubIndex) RootEntries(ctx context.Context) ([]Entry, error) {
 	res := make([]Entry, 0, len(n.children))
 	for _, c := range n.children[""] {
 		res = append(res, c)
 	}
-	return res
+	return res, nil
 }
 
 func (n *githubIndex) Children(ctx context.Context, of Entry) ([]Entry, error) {
@@ -182,6 +182,10 @@ type githubEntry struct {
 
 	mu sync.Mutex
 	r  *httpreaderat.HTTPReaderAt
+}
+
+func (e *githubEntry) Dir() bool {
+	return e.Tree
 }
 
 // Getattr implements File

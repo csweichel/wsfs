@@ -1,7 +1,8 @@
-package idxtar
+package idx
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -20,7 +21,7 @@ import (
 	"github.com/snabb/httpreaderat"
 )
 
-func OpenRemoteIndex(ctx context.Context, baseURL string) (CompleteIndex, error) {
+func OpenRemoteTarIndex(ctx context.Context, baseURL string) (LazyIndex, error) {
 	tmpdir, err := os.MkdirTemp("", "wsfs-index-*")
 	if err != nil {
 		return nil, err
@@ -127,7 +128,7 @@ func extractTarTo(dst string, tr *tar.Reader) error {
 	}
 }
 
-func OpenFileBackedIndex(index, tarfile string) (Index, error) {
+func OpenFileBackedTarIndex(index, tarfile string) (Index, error) {
 	idx, err := badger.Open(badger.DefaultOptions(index))
 	if err != nil {
 		return nil, err
@@ -137,52 +138,86 @@ func OpenFileBackedIndex(index, tarfile string) (Index, error) {
 		return nil, err
 	}
 
+	return OpenTarIndex(idx, tarf)
+}
+
+func OpenTarIndex(index *badger.DB, tarfile io.ReaderAt) (LazyIndex, error) {
 	return &fileBackedIndex{
-		TarFile: tarf,
-		Index:   idx,
+		TarFile: tarfile,
+		Index:   index,
 	}, nil
 }
+
+var _ LazyIndex = ((*fileBackedIndex)(nil))
 
 type fileBackedIndex struct {
 	TarFile io.ReaderAt
 	Index   *badger.DB
 }
 
-func (fs *fileBackedIndex) AllEntries() []Entry {
+func (fs *fileBackedIndex) scan(ctx context.Context, include func(path []byte) bool) ([]Entry, error) {
 	var res []Entry
 
-	_ = fs.Index.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+	err := fs.Index.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
 		defer it.Close()
 
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
+			k := item.Key()
 
-			err := item.Value(func(v []byte) error {
-				var e indexEntry
-				err := json.Unmarshal(v, &e)
-				if err != nil {
-					return err
-				}
+			if !include(k) {
+				continue
+			}
 
-				res = append(res, &fileBackedIndexEntry{
-					TarFile: fs.TarFile,
-					Entry:   e,
-				})
-				return nil
+			var e indexEntry
+			err := item.Value(func(val []byte) error {
+				return json.Unmarshal(val, &e)
 			})
 			if err != nil {
 				return err
 			}
+
+			res = append(res, &fileBackedIndexEntry{
+				TarFile: fs.TarFile,
+				Entry:   e,
+			})
 		}
+
 		return nil
 	})
-	return res
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+// Children implements LazyIndex
+func (fs *fileBackedIndex) Children(ctx context.Context, of Entry) ([]Entry, error) {
+	return fs.scan(ctx, func(path []byte) bool {
+		return bytes.HasPrefix(path, []byte(of.Name())) && string(path) != of.Name()
+	})
+}
+
+// RootEntries implements LazyIndex
+func (fs *fileBackedIndex) RootEntries(ctx context.Context) ([]Entry, error) {
+	return fs.scan(ctx, func(path []byte) bool {
+		pfx := strings.TrimPrefix(string(path), "./")
+
+		return strings.Count(pfx, "/") == 0
+	})
 }
 
 type fileBackedIndexEntry struct {
 	TarFile io.ReaderAt
 	Entry   indexEntry
+}
+
+func (e *fileBackedIndexEntry) Dir() bool {
+	return e.Entry.TarHeader.Typeflag == tar.TypeDir
 }
 
 // Read implements File
@@ -235,39 +270,12 @@ func (e *fileBackedIndexEntry) Name() string {
 
 var _ Entry = (*fileBackedIndexEntry)(nil)
 
-type Index interface{}
-
-type CompleteIndex interface {
-	AllEntries() []Entry
-}
-
-type LazyIndex interface {
-	RootEntries() []Entry
-	Children(ctx context.Context, of Entry) ([]Entry, error)
-}
-
-type Entry interface {
-	Name() string
-	Getattr(out *fuse.Attr) (applyDefaults bool, err error)
-
-	// Mode is used on the stableAttr of the inode
-	Mode() uint32
-
-	Read(dst []byte, offset int64) (n int, err error)
-}
-
 type indexEntry struct {
 	Offset    int64
 	TarHeader *tar.Header
 }
 
-func ProduceIndexFromTarFile(dst string, in io.Reader) error {
-	db, err := badger.Open(badger.DefaultOptions(dst))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
+func ProduceIndexFromTarFile(db *badger.DB, in io.Reader) error {
 	indexingR := &indexingReader{
 		Reader: in,
 	}
@@ -275,6 +283,7 @@ func ProduceIndexFromTarFile(dst string, in io.Reader) error {
 	tarf := tar.NewReader(indexingR)
 	for hdr, err := tarf.Next(); err == nil; hdr, err = tarf.Next() {
 		hdr.Name = strings.TrimPrefix(hdr.Name, "./")
+		hdr.Name = strings.TrimSuffix(hdr.Name, "/")
 
 		hdrJson, err := json.Marshal(indexEntry{
 			Offset:    indexingR.Offset,

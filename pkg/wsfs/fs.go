@@ -5,10 +5,9 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
-	"strings"
 	"syscall"
 
-	"github.com/csweichel/wsfs/pkg/idxtar"
+	"github.com/csweichel/wsfs/pkg/idx"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	log "github.com/sirupsen/logrus"
@@ -18,7 +17,7 @@ type Options struct {
 	DefaultUID, DefaultGID uint32
 }
 
-func New(index idxtar.Index, opts Options) fs.InodeEmbedder {
+func New(index idx.Index, opts Options) fs.InodeEmbedder {
 	return &indexedRoot{idx: index, opts: opts}
 }
 
@@ -28,7 +27,7 @@ type indexedRoot struct {
 	fs.Inode
 
 	opts Options
-	idx  idxtar.Index
+	idx  idx.Index
 }
 
 // The root populates the tree in its OnAdd method
@@ -39,56 +38,27 @@ func (zr *indexedRoot) OnAdd(ctx context.Context) {
 	// then construct a tree.  We construct the entire tree, and
 	// we don't want parts of the tree to disappear when the
 	// kernel is short on memory, so we use persistent inodes.
-	if idx, ok := zr.idx.(idxtar.CompleteIndex); ok {
-		for _, f := range idx.AllEntries() {
-			dir, base := filepath.Split(f.Name())
-			log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
-
-			p := &zr.Inode
-			for _, component := range strings.Split(dir, "/") {
-				if len(component) == 0 {
-					continue
-				}
-				ch := p.GetChild(component)
-				if ch == nil {
-					ch = p.NewPersistentInode(ctx, &indexedFile{file: f, root: zr}, fs.StableAttr{Mode: fuse.S_IFDIR})
-					p.AddChild(component, ch, true)
-				}
-
-				p = ch
-			}
-			if base == "" {
-				continue
-			}
-
-			ch := p.NewPersistentInode(ctx, &indexedFile{file: f, root: zr}, fs.StableAttr{
-				Mode: f.Mode(),
-			})
-
-			log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
-			p.AddChild(base, ch, true)
-		}
+	idx, ok := zr.idx.(idx.LazyIndex)
+	if !ok {
 		return
 	}
 
-	// OnAdd is called once we are attached to an Inode. We can
-	// then construct a tree.  We construct the entire tree, and
-	// we don't want parts of the tree to disappear when the
-	// kernel is short on memory, so we use persistent inodes.
-	if idx, ok := zr.idx.(idxtar.LazyIndex); ok {
-		for _, f := range idx.RootEntries() {
-			dir, base := filepath.Split(f.Name())
-			log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
+	root, err := idx.RootEntries(ctx)
+	if err != nil {
+		log.WithError(err).Warn("cannot retrieve root entries")
+	}
 
-			p := &zr.Inode
-			ch := p.NewPersistentInode(ctx, &indexedFile{file: f, lazyIdx: idx, root: zr}, fs.StableAttr{
-				Mode: f.Mode(),
-			})
+	for _, f := range root {
+		dir, base := filepath.Split(f.Name())
+		log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
 
-			log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
-			p.AddChild(base, ch, true)
-		}
-		return
+		p := &zr.Inode
+		ch := p.NewPersistentInode(ctx, &indexedFile{file: f, lazyIdx: idx, root: zr}, fs.StableAttr{
+			Mode: f.Mode(),
+		})
+
+		log.WithField("base", base).WithField("dir", dir).WithField("name", f.Name()).Debug("adding inode")
+		p.AddChild(base, ch, true)
 	}
 }
 
@@ -105,10 +75,10 @@ func (zr *indexedRoot) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.A
 // indexedFile is a file read from an indexed filesystem.
 type indexedFile struct {
 	fs.Inode
-	file idxtar.Entry
+	file idx.Entry
 
 	root    *indexedRoot
-	lazyIdx idxtar.LazyIndex
+	lazyIdx idx.LazyIndex
 }
 
 // Getattr sets the minimum, which is the size. A more full-featured
@@ -190,7 +160,7 @@ func (zf *indexedFile) Lookup(ctx context.Context, name string, out *fuse.EntryO
 		return nil, syscall.EINVAL
 	}
 
-	var res idxtar.Entry
+	var res idx.Entry
 	for _, e := range children {
 		if e.Name() == name {
 			res = e

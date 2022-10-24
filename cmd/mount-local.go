@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/csweichel/wsfs/pkg/idxtar"
+	"github.com/csweichel/wsfs/pkg/idx"
 	"github.com/csweichel/wsfs/pkg/wsfs"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -23,7 +23,7 @@ var mountLocalCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		t0 := time.Now()
 
-		fsIndex, err := idxtar.OpenFileBackedIndex(args[0], args[1])
+		fsIndex, err := idx.OpenFileBackedTarIndex(args[0], args[1])
 		if err != nil {
 			logrus.WithError(err).Fatal("cannot open indexed tar")
 		}
