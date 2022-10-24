@@ -56,7 +56,8 @@ var mountRemoteCmd = &cobra.Command{
 		os.Mkdir(mnt, 0755)
 		server, err := fs.Mount(mnt, indexedRoot, &fs.Options{
 			MountOptions: fuse.MountOptions{
-				Debug: rootOpts.Verbose,
+				Debug:      rootOpts.Verbose,
+				AllowOther: mountOpts.AllowOther,
 			},
 		})
 		if err != nil {

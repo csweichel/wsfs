@@ -52,7 +52,8 @@ var mountGithubCmd = &cobra.Command{
 		os.Mkdir(mnt, 0755)
 		server, err := fs.Mount(mnt, idxfs, &fs.Options{
 			MountOptions: fuse.MountOptions{
-				Debug: rootOpts.Verbose,
+				Debug:      rootOpts.Verbose,
+				AllowOther: mountOpts.AllowOther,
 			},
 		})
 		if err != nil {

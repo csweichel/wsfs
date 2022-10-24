@@ -68,6 +68,10 @@ func (zr *indexedRoot) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.A
 	out.Gid = zr.opts.DefaultGID
 	out.Uid = zr.opts.DefaultUID
 	out.Mode = 0755 | syscall.S_IFDIR
+	out.Owner = fuse.Owner{
+		Uid: zr.opts.DefaultUID,
+		Gid: zr.opts.DefaultGID,
+	}
 	out.Size = 6
 	return 0
 }
